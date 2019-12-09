@@ -14,9 +14,141 @@ class TestElasticBuffer(unittest.TestCase):
         {'a': 1, 'b': 2},
         {'a': 3, 'b': 4},
         {'a': 5, 'b': 6},
+        {'a': 7, 'b': 8},
     ]
 
     timestamp = 123.456
+
+    @patch.object(ElasticBuffer, 'flush')
+    def test_add(self, mock_flush):
+        
+        class TestCase:
+            def __init__(
+                self,
+                documents,
+                documents_timestamp,
+                expected_buffer,
+                expected_oldest_doc_timestamp,
+                expected_flush_called,
+                buffer_size=10,
+                # used for multiple adds
+                more_documents=None,
+                more_documents_timestamp=None,
+            ):
+                self.documents = documents
+                self.documents_timestamp = documents_timestamp
+
+                self.expected_buffer = expected_buffer
+                self.expected_oldest_doc_timestamp = expected_oldest_doc_timestamp
+                self.expected_flush_called = expected_flush_called
+
+                self.more_documents = [] if more_documents is None else more_documents
+                self.more_documents_timestamp = None if more_documents_timestamp is None else more_documents_timestamp
+
+                self.eb = ElasticBuffer(size=buffer_size)
+
+        tests = {
+            'add empty list of records': TestCase(
+                documents=[],
+                documents_timestamp=1234,
+                expected_buffer=[],
+                expected_oldest_doc_timestamp=None,
+                expected_flush_called=False,
+            ),
+            'add single bare record': TestCase(
+                documents=self.docs[0],
+                documents_timestamp=1234,
+                expected_buffer=[self.docs[0]],
+                expected_oldest_doc_timestamp=1234,
+                expected_flush_called=False,
+            ),
+            'add single record in a list': TestCase(
+                documents=[self.docs[0]],
+                documents_timestamp=1234,
+                expected_buffer=[self.docs[0]],
+                expected_oldest_doc_timestamp=1234,
+                expected_flush_called=False,
+            ),
+            'add list of records below buffer size': TestCase(
+                documents=self.docs,
+                documents_timestamp=1234,
+                expected_buffer=self.docs,
+                expected_oldest_doc_timestamp=1234,
+                expected_flush_called=False,
+                buffer_size=len(self.docs) + 1,
+            ),
+            'add list of records equal to buffer size': TestCase(
+                documents=self.docs,
+                documents_timestamp=1234,
+                expected_buffer=self.docs,
+                expected_oldest_doc_timestamp=1234,
+                expected_flush_called=False,
+                buffer_size=len(self.docs),
+            ),
+            'add list of records exceeding buffer size': TestCase(
+                documents=self.docs,
+                documents_timestamp=1234,
+                expected_buffer=[],
+                expected_oldest_doc_timestamp=None,
+                expected_flush_called=True,
+                buffer_size=len(self.docs) - 1,
+            ),
+            'add twice without exceeding buffer size': TestCase(
+                documents=self.docs[:-1],
+                documents_timestamp=1234,
+                more_documents=self.docs[-1],
+                more_documents_timestamp=1235,
+                expected_buffer=self.docs,
+                expected_oldest_doc_timestamp=1234,
+                expected_flush_called=False,
+                buffer_size=len(self.docs),
+            ),
+            'add twice with first add exceeding buffer size': TestCase(
+                documents=self.docs[:-1],
+                documents_timestamp=1234,
+                more_documents=self.docs[-1],
+                more_documents_timestamp=1235,
+                expected_buffer=[self.docs[-1]],
+                expected_oldest_doc_timestamp=1235,
+                expected_flush_called=True,
+                buffer_size=len(self.docs) - 2,
+            ),
+            'add twice with second add exceeding buffer size': TestCase(
+                documents=self.docs[:-1],
+                documents_timestamp=1234,
+                more_documents=self.docs[-1],
+                more_documents_timestamp=1235,
+                expected_buffer=[],
+                expected_oldest_doc_timestamp=None,
+                expected_flush_called=True,
+                buffer_size=len(self.docs) - 1,
+            ),
+            'add twice with both adds exceeding buffer size': TestCase(
+                documents=self.docs,
+                documents_timestamp=1234,
+                more_documents=self.docs,
+                more_documents_timestamp=1235,
+                expected_buffer=[],
+                expected_oldest_doc_timestamp=None,
+                expected_flush_called=True,
+                buffer_size=1,
+            ),
+        }
+
+        for test_name, test in tests.items():
+            mock_flush.reset_mock()
+            mock_flush.side_effect = test.eb._clear_buffer
+
+            test.eb.add(test.documents, timestamp=test.documents_timestamp)
+            if test.more_documents:
+                test.eb.add(test.more_documents, timestamp=test.more_documents_timestamp)
+            
+            self.assertListEqual(test.eb._buffer, test.expected_buffer, test_name)
+            self.assertEqual(test.eb._oldest_doc_timestamp, test.expected_oldest_doc_timestamp, test_name)
+            if test.expected_flush_called:
+                mock_flush.assert_called()
+            else:
+                mock_flush.assert_not_called()
 
     @patch(f'{ElasticBuffer.__module__}.bulk')
     def test_flush_empty_buffer(self, mock_bulk):
