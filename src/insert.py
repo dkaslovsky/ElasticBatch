@@ -1,5 +1,5 @@
 import time
-from typing import Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
@@ -10,25 +10,20 @@ class ElasticBuffer:
     def __init__(
         self,
         size: int = 5000,
-        client_args: Optional[Dict] = None,
-        bulk_args: Optional[Dict] = None,
+        client_kwargs: Optional[Dict[str, Any]] = None,
+        bulk_kwargs: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         :param size: number of documents buffer can hold before flushing to Elasticsearch
-        :param client_args: dict of kwargs for elasticsearch.Elasticsearch client configuration
-        :param bulk_args: dict of kwargs for elasticsearch.helpers.bulk insertion
+        :param client_kwargs: dict of kwargs for elasticsearch.Elasticsearch client configuration
+        :param bulk_kwargs: dict of kwargs for elasticsearch.helpers.bulk insertion
         """
 
         self.size = size
 
-        self.client = Elasticsearch(**client_args) if client_args else Elasticsearch()
+        self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
-        self.bulk_args = {
-            'chunk_size': size,  # always bulk insert this many documents at a time
-            'max_retries': 3,    # number of retries in case of insertion error
-        }
-        if bulk_args:
-            self.bulk_args.update(bulk_args)  # bulk_args can overwrite the above defaults
+        self._client = Elasticsearch(**client_kwargs) if client_kwargs else Elasticsearch()
 
         self._buffer = []                  # type: List[Dict]
         self._oldest_doc_timestamp = None  # type: Optional[float]
@@ -74,7 +69,7 @@ class ElasticBuffer:
             return
 
         try:
-            n_success, bulk_errs = bulk(self.client, self._buffer, **self.bulk_args)
+            n_success, bulk_errs = bulk(self._client, self._buffer, **self.bulk_kwargs)
         except ElasticsearchException as err:
             raise ElasticBufferException(err)
         if len(bulk_errs) != 0:
@@ -93,6 +88,21 @@ class ElasticBuffer:
         """
         self._buffer = []
         self._oldest_doc_timestamp = None
+
+    @staticmethod
+    def _construct_bulk_kwargs(size: int, bulk_kwargs: Optional[Dict]) -> Dict[str, Any]:
+        """
+        Construct Dict of kwargs to be passed to bulk
+        :param size: number of documents the underlying client should bulk insert at a time
+        :param bulk_kwargs: optional dict of kwargs to pass to bulk; values set in this parameter
+         will overwrite defaults set below
+        """
+        bulk_kwargs = bulk_kwargs if bulk_kwargs is not None else {}
+        return {
+            'max_retries': 3,  # number of retries in case of insertion error
+            'chunk_size': size,
+            **bulk_kwargs,
+        }
 
 
 class ElasticBufferException(Exception):
