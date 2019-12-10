@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 from elasticsearch import ElasticsearchException
 
-from src.insert import ElasticBuffer, ElasticBufferException
+from elasticbatch.insert import ElasticBuffer, ElasticBufferException
 
 # pylint: disable=protected-access
 
