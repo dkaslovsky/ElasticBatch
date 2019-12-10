@@ -1,3 +1,4 @@
+import math
 import unittest
 from unittest.mock import patch
 
@@ -21,7 +22,7 @@ class TestElasticBuffer(unittest.TestCase):
 
     @patch.object(ElasticBuffer, 'flush')
     def test_add(self, mock_flush):
-        
+
         class TestCase:
             def __init__(
                 self,
@@ -211,6 +212,52 @@ class TestElasticBuffer(unittest.TestCase):
             self.assertListEqual(test.eb._buffer, self.docs, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, self.timestamp, test_name)
 
+    def test__get_oldest_elapsed_time_from(self):
+
+        class TestCase:
+            def __init__(self, oldest_doc_timestamp, timestamp, expected=None):
+                self.timestamp = timestamp
+                self.expected = expected
+
+                self.eb = ElasticBuffer()
+                self.eb._oldest_doc_timestamp = oldest_doc_timestamp
+
+        tests_success = {
+            'oldest time is None (corresponding to empty buffer)': TestCase(
+                oldest_doc_timestamp=None,
+                timestamp=123.456,
+                expected=-math.inf,
+            ),
+            'oldest time is None (corresponding to empty buffer) with invalid timestamp': TestCase(
+                oldest_doc_timestamp=None,
+                timestamp='123.456',
+                expected=-math.inf,
+            ),
+            'compute elapsed time from specified time': TestCase(
+                oldest_doc_timestamp=100.41,
+                timestamp=123.45,
+                expected=23.04,
+            ),
+        }
+
+        tests_error = {
+            'string input': TestCase(
+                oldest_doc_timestamp=1234,
+                timestamp='1235',
+            ),
+            'None input': TestCase(
+                oldest_doc_timestamp=1234,
+                timestamp=None,
+            ),
+        }
+
+        for test_name, test in tests_success.items():
+            result = test.eb._get_oldest_elapsed_time_from(test.timestamp)
+            self.assertAlmostEqual(result, test.expected, places=3, msg=test_name)
+
+        for test_name, test in tests_error.items():
+            with self.assertRaises(TypeError, msg=test_name):
+                _ = test.eb._get_oldest_elapsed_time_from(test.timestamp)
 
     def test__clear_buffer(self):
 

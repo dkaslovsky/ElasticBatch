@@ -1,3 +1,4 @@
+import math
 import time
 from typing import Any, Dict, List, Optional, Union
 
@@ -28,17 +29,25 @@ class ElasticBuffer:
         self._buffer = []                  # type: List[Dict]
         self._oldest_doc_timestamp = None  # type: Optional[float]
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         Printable class information
         """
         return f'{self.__class__.__name__} containing {len(self)} documents'
 
-    def __len__(self):
+    def __len__(self) -> int:
         """
         Return number of documents in buffer
         """
         return len(self._buffer)
+
+    @property
+    def oldest_elapsed_time(self):
+        """
+        Get elapsed time in seconds between now and insert time of oldest document in buffer
+        """
+        now = time.time()
+        return self._get_oldest_elapsed_time_from(now)
 
     def add(self, docs: Union[List[Dict], Dict], timestamp: Optional[float] = None) -> None:
         """
@@ -81,6 +90,18 @@ class ElasticBuffer:
 
         # clear buffer on successfull bulk insert
         self._clear_buffer()
+
+    def _get_oldest_elapsed_time_from(self, timestamp: float) -> float:
+        """
+        Return elapsed seconds between timestamp and insert time of oldest document in the buffer
+        :param timestamp: timestamp in seconds (usually from epoch)
+        """
+        if self._oldest_doc_timestamp is None:
+            return -math.inf
+        try:
+            return timestamp - self._oldest_doc_timestamp
+        except TypeError:
+            raise TypeError('Cannot use non-float as numeric value for computing elapsed time')
 
     def _clear_buffer(self) -> None:
         """
