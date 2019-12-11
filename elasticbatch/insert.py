@@ -78,7 +78,7 @@ class ElasticBuffer:
         """
         Add documents to buffer
         :param docs: documents to append
-        :param timestamp: time (seconds from epoch) to associate as insert time for docs
+        :param timestamp: seconds from epoch to associate as insert time for docs; defaults to now
         """
         if not isinstance(docs, list):
             docs = [docs]
