@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import math
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Type, Union, types
 
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
@@ -41,8 +43,31 @@ class ElasticBuffer:
         """
         return len(self._buffer)
 
+    def __enter__(self) -> ElasticBuffer:
+        """
+        Enable context manager
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> None:
+        """
+        Ensure flush is called when exiting context unless exception is raised
+        :param exc_type: type of any exception raised inside the context
+        :param exc_val: value of any exception raised inside the context
+        :param exc_tb: Traceback of any exception raised inside the context
+        """
+        # don't flush if exiting because of an exception
+        if any((exc_type, exc_val, exc_tb)):
+            return
+        self.flush()
+
     @property
-    def oldest_elapsed_time(self):
+    def oldest_elapsed_time(self) -> float:
         """
         Get elapsed time in seconds between now and insert time of oldest document in buffer
         """
@@ -81,8 +106,8 @@ class ElasticBuffer:
             n_success, bulk_errs = bulk(self._client, self._buffer, **self.bulk_kwargs)
         except ElasticsearchException as err:
             raise ElasticBufferException(err)
+
         if len(bulk_errs) != 0:
-            # TODO HANDLE VERBOSITY HERE
             raise ElasticBufferException(f'Bulk insertion errrors: {bulk_errs}')
         if n_success != len(self):
             n_fail = len(self) - n_success

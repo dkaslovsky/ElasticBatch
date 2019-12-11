@@ -187,7 +187,7 @@ class TestElasticBuffer(unittest.TestCase):
                 self.side_effect = side_effect
 
         tests = {
-            'bulk raises exception': TestCase(
+            'bulk raises ElasticsearchException': TestCase(
                 side_effect=ElasticsearchException,
             ),
             'not all docs successfully inserted': TestCase(
@@ -211,6 +211,81 @@ class TestElasticBuffer(unittest.TestCase):
             # assert state was not cleared
             self.assertListEqual(test.eb._buffer, self.docs, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, self.timestamp, test_name)
+
+    @patch.object(ElasticBuffer, 'flush')
+    def test_context_success(self, mock_flush):
+
+        class TestCase:
+            def __init__(self, n_docs, buffer_size, n_expected_flush_calls):
+                self.n_docs = n_docs
+                self.buffer_size = buffer_size
+                self.n_expected_flush_calls = n_expected_flush_calls
+
+        tests = {
+            'flush is called on exit with empty buffer': TestCase(
+                n_docs=0,
+                buffer_size=10,
+                n_expected_flush_calls=1,
+            ),
+            'flush is called on exit with populated buffer': TestCase(
+                n_docs=5,
+                buffer_size=10,
+                n_expected_flush_calls=1,
+            ),
+            'flush is called once when buffer is full and once on exit': TestCase(
+                n_docs=5,
+                buffer_size=2,
+                n_expected_flush_calls=2,
+            ),
+        }
+
+        for test_name, test in tests.items():
+            mock_flush.reset_mock()
+
+            docs = ['a'] * test.n_docs
+            with ElasticBuffer(size=test.buffer_size) as eb:
+                mock_flush.side_effect = eb._clear_buffer
+                eb.add(docs)
+            self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
+
+    @patch.object(ElasticBuffer, 'flush')
+    def test_context_error(self, mock_flush):
+
+        class TestCase:
+            def __init__(self, n_docs, buffer_size, n_expected_flush_calls):
+                self.n_docs = n_docs
+                self.buffer_size = buffer_size
+                self.n_expected_flush_calls = n_expected_flush_calls
+
+        tests = {
+            'flush is not called on exit due to exception with empty buffer': TestCase(
+                n_docs=0,
+                buffer_size=10,
+                n_expected_flush_calls=0,
+            ),
+            'flush is not called on exit due to exception with populated buffer': TestCase(
+                n_docs=5,
+                buffer_size=10,
+                n_expected_flush_calls=0,
+            ),
+            'flush is called once when buffer is full but not again on exit': TestCase(
+                n_docs=5,
+                buffer_size=2,
+                n_expected_flush_calls=1,
+            ),
+        }
+
+        for test_name, test in tests.items():
+            mock_flush.reset_mock()
+            mock_flush.side_effect = ElasticBufferException
+
+            docs = ['a'] * test.n_docs
+            with self.assertRaises((ElasticBufferException, ValueError), msg=test_name):
+                with ElasticBuffer(size=test.buffer_size) as eb:
+                    eb.add(docs)
+                    raise ValueError()
+            self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
+
 
     def test__get_oldest_elapsed_time_from(self):
 
