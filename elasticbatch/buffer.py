@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 import time
 from typing import Any, Dict, List, Optional, Type, Union, types
@@ -20,17 +21,20 @@ class ElasticBuffer:
         size: int = 5000,
         client_kwargs: Optional[Dict[str, Any]] = None,
         bulk_kwargs: Optional[Dict[str, Any]] = None,
+        dump_on_err: bool = False,
         verbose_errs: bool = True,
     ) -> None:
         """
         :param size: number of documents buffer can hold before flushing to Elasticsearch
         :param client_kwargs: dict of kwargs for elasticsearch.Elasticsearch client configuration
         :param bulk_kwargs: dict of kwargs for elasticsearch.helpers.bulk insertion
+        :param dump_on_err: whether to write buffer to a file on exception in context manager
         :param verbose_errs: whether full (True; default) or truncated (False) errors are raised
         """
 
         self.size = size
         self.verbose_errs = verbose_errs
+        self.dump_on_err = dump_on_err
 
         self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
@@ -69,10 +73,14 @@ class ElasticBuffer:
         :param exc_val: value of any exception raised inside the context
         :param exc_tb: Traceback of any exception raised inside the context
         """
-        # don't flush if exiting because of an exception
-        if any((exc_type, exc_val, exc_tb)):
+        err_raised = any((exc_type, exc_val, exc_tb))
+        # only flush if exiting without raised Exception
+        if not err_raised:
+            self.flush()
             return
-        self.flush()
+        # write contents of buffer to file on Exception
+        if self.dump_on_err:
+            self._to_file()
 
     @property
     def oldest_elapsed_time(self) -> float:
@@ -157,6 +165,17 @@ class ElasticBuffer:
         """
         self._buffer = []
         self._oldest_doc_timestamp = None
+
+    def _to_file(self):
+        """
+        Write contents of buffer as ndjson file
+        """
+        if len(self) == 0:
+            return
+        file_name = f'{self.__class__.__name__}_buffer_dump_{time.time()}'
+        with open(file_name, 'w') as handle:
+            for doc in self._buffer:
+                handle.write(json.dumps(doc) + '\n')
 
     @staticmethod
     def _ensure_list(docs: DocumentBundle) -> List[Dict]:
