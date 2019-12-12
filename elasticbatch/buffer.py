@@ -17,14 +17,17 @@ class ElasticBuffer:
         size: int = 5000,
         client_kwargs: Optional[Dict[str, Any]] = None,
         bulk_kwargs: Optional[Dict[str, Any]] = None,
+        verbose_errs: bool = True,
     ) -> None:
         """
         :param size: number of documents buffer can hold before flushing to Elasticsearch
         :param client_kwargs: dict of kwargs for elasticsearch.Elasticsearch client configuration
         :param bulk_kwargs: dict of kwargs for elasticsearch.helpers.bulk insertion
+        :param verbose_errs: whether full (True; default) or truncated (False) errors are raised
         """
 
         self.size = size
+        self.verbose_errs = verbose_errs
 
         self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
@@ -86,13 +89,19 @@ class ElasticBuffer:
         try:
             n_success, bulk_errs = bulk(self._client, self._buffer, **self.bulk_kwargs)
         except ElasticsearchException as err:
-            raise ElasticBufferException(err)
+            raise ElasticBufferFlushError(err, self.verbose_errs)
 
         if len(bulk_errs) != 0:
-            raise ElasticBufferException(f'Bulk insertion errrors: {bulk_errs}')
+            raise ElasticBufferFlushError(
+                ElasticBufferErrorWrapper(f'Bulk insertion errrors: {bulk_errs}'),
+                self.verbose_errs,
+            )
         if n_success != len(self):
             n_fail = len(self) - n_success
-            raise ElasticBufferException(f'Failed to insert {n_fail} of {len(self)} documents')
+            raise ElasticBufferFlushError(
+                f'Failed to insert {n_fail} of {len(self)} documents',
+                self.verbose_errs,
+            )
 
         # clear buffer on successfull bulk insert
         self._clear_buffer()
@@ -176,5 +185,32 @@ class ElasticBuffer:
         }
 
 
-class ElasticBufferException(Exception):
-    pass
+class ElasticBatchError(Exception):
+    """ Base ElasticBatch exception """
+
+
+class ElasticBufferErrorWrapper(ElasticBatchError):
+    """ Exception used to wrap errors with long messages for control by verbose flag """
+
+
+class ElasticBufferFlushError(ElasticBatchError):
+
+    def __init__(self, err: Union[str, BaseException], verbose: bool) -> None:
+        self.err = err
+        self.verbose = verbose
+        super().__init__(err)
+
+    def __str__(self) -> str:
+        if isinstance(self.err, str):
+            return self.err
+
+        try:
+            err_name = f'{self.err.__module__}.{self.err.__class__.__name__}'
+        except AttributeError:
+            err_name = self.err.__class__.__name__
+
+        if self.verbose:
+            return f'{err_name}: {super().__str__()}'
+        if isinstance(self.err, ElasticBufferErrorWrapper):
+            return f'{err_name}: Error writing buffer contents (details truncated by verbose flag)'
+        return err_name

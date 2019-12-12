@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pandas as pd
 from elasticsearch import ElasticsearchException
 
-from elasticbatch.insert import ElasticBuffer, ElasticBufferException
+from elasticbatch.buffer import ElasticBuffer, ElasticBatchError
 
 # pylint: disable=protected-access
 
@@ -199,7 +199,7 @@ class TestElasticBuffer(unittest.TestCase):
             mock_bulk.return_value = test.return_value
             mock_bulk.side_effect = test.side_effect
 
-            with self.assertRaises(ElasticBufferException, msg=test_name):
+            with self.assertRaises(ElasticBatchError, msg=test_name):
                 test.eb.flush()
 
             # assert state was not cleared
@@ -339,10 +339,10 @@ class TestElasticBuffer(unittest.TestCase):
 
         for test_name, test in tests.items():
             mock_flush.reset_mock()
-            mock_flush.side_effect = ElasticBufferException
+            mock_flush.side_effect = ElasticBatchError
 
             docs = ['a'] * test.n_docs
-            with self.assertRaises((ElasticBufferException, ValueError), msg=test_name):
+            with self.assertRaises((ElasticBatchError, ValueError), msg=test_name):
                 with ElasticBuffer(size=test.buffer_size) as eb:
                     eb.add(docs)
                     raise ValueError()
