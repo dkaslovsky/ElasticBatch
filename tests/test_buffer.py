@@ -1,6 +1,7 @@
+import json
 import math
 import unittest
-from unittest.mock import patch
+from unittest.mock import mock_open, patch
 
 import pandas as pd
 from elasticsearch import ElasticsearchException
@@ -348,6 +349,22 @@ class TestElasticBuffer(unittest.TestCase):
                     eb.add(docs)
                     raise ValueError()
             self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
+
+    def test__to_file(self):
+        docs = [{'a': 1}, {'b': 2}]
+        content = json.dumps(docs[0]) + '\n' + json.dumps(docs[1]) + '\n'
+        with patch('elasticbatch.buffer.open', mock_open()) as mocked_file:
+            eb = ElasticBuffer()
+            eb.add(docs)
+            eb._to_file(timestamp=self.timestamp)
+
+            file_name = f'{eb.__class__.__name__}_buffer_dump_{self.timestamp}'
+            mocked_file.assert_called_once_with(file_name, 'w')
+            #mocked_file().write.assert_called_with(content)
+            for doc in docs:
+                mocked_file().write.assert_called_with(json.dumps(doc) + '\n')
+            self.assertEqual(mocked_file().write.call_count, len(docs), 'msg')
+
 
     def test__get_oldest_elapsed_time_from(self):
 

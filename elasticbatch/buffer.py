@@ -166,13 +166,14 @@ class ElasticBuffer:
         self._buffer = []
         self._oldest_doc_timestamp = None
 
-    def _to_file(self):
+    def _to_file(self, timestamp: Optional[float] = None):
         """
         Write contents of buffer as ndjson file
         """
         if len(self) == 0:
             return
-        file_name = f'{self.__class__.__name__}_buffer_dump_{time.time()}'
+        timestamp = time.time() if timestamp is None else timestamp
+        file_name = f'{self.__class__.__name__}_buffer_dump_{timestamp}'
         with open(file_name, 'w') as handle:
             for doc in self._buffer:
                 handle.write(json.dumps(doc) + '\n')
