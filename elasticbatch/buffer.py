@@ -8,6 +8,9 @@ import pandas as pd
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
 
+from elasticbatch.exceptions import (ElasticBufferErrorWrapper,
+                                     ElasticBufferFlushError)
+
 DocumentBundle = Union[Dict, List[Dict], pd.Series, pd.DataFrame]
 
 class ElasticBuffer:
@@ -183,34 +186,3 @@ class ElasticBuffer:
             'chunk_size': size,
             **bulk_kwargs,
         }
-
-
-class ElasticBatchError(Exception):
-    """ Base ElasticBatch exception """
-
-
-class ElasticBufferErrorWrapper(ElasticBatchError):
-    """ Exception used to wrap errors with long messages for control by verbose flag """
-
-
-class ElasticBufferFlushError(ElasticBatchError):
-
-    def __init__(self, err: Union[str, BaseException], verbose: bool) -> None:
-        self.err = err
-        self.verbose = verbose
-        super().__init__(err)
-
-    def __str__(self) -> str:
-        if isinstance(self.err, str):
-            return self.err
-
-        try:
-            err_name = f'{self.err.__module__}.{self.err.__class__.__name__}'
-        except AttributeError:
-            err_name = self.err.__class__.__name__
-
-        if self.verbose:
-            return f'{err_name}: {super().__str__()}'
-        if isinstance(self.err, ElasticBufferErrorWrapper):
-            return f'{err_name}: Error writing buffer contents (details truncated by verbose flag)'
-        return err_name

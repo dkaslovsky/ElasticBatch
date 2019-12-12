@@ -5,7 +5,8 @@ from unittest.mock import patch
 import pandas as pd
 from elasticsearch import ElasticsearchException
 
-from elasticbatch.buffer import ElasticBuffer, ElasticBatchError
+from elasticbatch.buffer import ElasticBuffer
+from elasticbatch.exceptions import ElasticBatchError
 
 # pylint: disable=protected-access
 
