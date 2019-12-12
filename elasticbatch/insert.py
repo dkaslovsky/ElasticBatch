@@ -4,9 +4,11 @@ import math
 import time
 from typing import Any, Dict, List, Optional, Type, Union, types
 
+import pandas as pd
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
 
+DocumentBundle = Union[Dict, List[Dict], pd.Series, pd.DataFrame]
 
 class ElasticBuffer:
 
@@ -74,28 +76,6 @@ class ElasticBuffer:
         now = time.time()
         return self._get_oldest_elapsed_time_from(now)
 
-    def add(self, docs: Union[List[Dict], Dict], timestamp: Optional[float] = None) -> None:
-        """
-        Add documents to buffer
-        :param docs: documents to append
-        :param timestamp: seconds from epoch to associate as insert time for docs; defaults to now
-        """
-        if not isinstance(docs, list):
-            docs = [docs]
-        if not docs:
-            return
-
-        # record timestamp of insert time if buffer is empty
-        if len(self) == 0:
-            now = time.time() if timestamp is None else timestamp
-            self._oldest_doc_timestamp = now
-
-        self._buffer.extend(docs)
-
-        # flush if buffer is full
-        if len(self) > self.size:
-            self.flush()
-
     def flush(self) -> None:
         """
         Bulk insert buffer contents to Elasticsearch
@@ -117,6 +97,36 @@ class ElasticBuffer:
         # clear buffer on successfull bulk insert
         self._clear_buffer()
 
+    def add(self, docs: DocumentBundle, timestamp: Optional[float] = None) -> None:
+        """
+        Add documents from an DocumentBundle data structure to buffer
+        :param docs: DocumentBundle of documents to append
+        :param timestamp: seconds from epoch to associate as insert time for docs; defaults to now
+        """
+        docs_list = self._ensure_list(docs)
+
+        timestamp = time.time() if timestamp is None else timestamp
+        self._add(docs_list, timestamp)
+
+    def _add(self, docs: List[Dict], timestamp: float) -> None:
+        """
+        Add list of documents to buffer
+        :param docs: documents to append
+        :param timestamp: seconds from epoch to associate as insert time for docs
+        """
+        if not docs:
+            return
+
+        # record timestamp of insert time if buffer is empty
+        if len(self) == 0:
+            self._oldest_doc_timestamp = timestamp
+
+        self._buffer.extend(docs)
+
+        # flush if buffer is full
+        if len(self) > self.size:
+            self.flush()
+
     def _get_oldest_elapsed_time_from(self, timestamp: float) -> float:
         """
         Return elapsed seconds between timestamp and insert time of oldest document in the buffer
@@ -135,6 +145,20 @@ class ElasticBuffer:
         """
         self._buffer = []
         self._oldest_doc_timestamp = None
+
+    @staticmethod
+    def _ensure_list(docs: DocumentBundle) -> List[Dict]:
+        if isinstance(docs, list):
+            return docs
+        if isinstance(docs, dict):
+            return [docs]
+        if isinstance(docs, pd.Series):
+            docs = docs.to_frame()
+        if isinstance(docs, pd.DataFrame):
+            if docs.index.name:
+                docs = docs.reset_index()
+            return docs.to_dict(orient='records')
+        raise ValueError('Must pass one of [List, Dict, pandas.Series, pandas.DataFrame]')
 
     @staticmethod
     def _construct_bulk_kwargs(size: int, bulk_kwargs: Optional[Dict]) -> Dict[str, Any]:

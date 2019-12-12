@@ -2,6 +2,7 @@ import math
 import unittest
 from unittest.mock import patch
 
+import pandas as pd
 from elasticsearch import ElasticsearchException
 
 from elasticbatch.insert import ElasticBuffer, ElasticBufferException
@@ -12,16 +13,16 @@ from elasticbatch.insert import ElasticBuffer, ElasticBufferException
 class TestElasticBuffer(unittest.TestCase):
 
     docs = [
-        {'a': 1, 'b': 2},
-        {'a': 3, 'b': 4},
-        {'a': 5, 'b': 6},
-        {'a': 7, 'b': 8},
+        {'a': 1, 'b': 2.1, 'c': 'xyz'},
+        {'a': 3, 'b': 4.1, 'c': 'xyy'},
+        {'a': 5, 'b': 6.1, 'c': 'zzz'},
+        {'a': 7, 'b': 8.1, 'c': 'zyx'},
     ]
 
     timestamp = 123.456
 
     @patch.object(ElasticBuffer, 'flush')
-    def test_add(self, mock_flush):
+    def test__add(self, mock_flush):
 
         class TestCase:
             def __init__(
@@ -54,13 +55,6 @@ class TestElasticBuffer(unittest.TestCase):
                 documents_timestamp=1234,
                 expected_buffer=[],
                 expected_oldest_doc_timestamp=None,
-                expected_flush_called=False,
-            ),
-            'add single bare record': TestCase(
-                documents=self.docs[0],
-                documents_timestamp=1234,
-                expected_buffer=[self.docs[0]],
-                expected_oldest_doc_timestamp=1234,
                 expected_flush_called=False,
             ),
             'add single record in a list': TestCase(
@@ -97,7 +91,7 @@ class TestElasticBuffer(unittest.TestCase):
             'add twice without exceeding buffer size': TestCase(
                 documents=self.docs[:-1],
                 documents_timestamp=1234,
-                more_documents=self.docs[-1],
+                more_documents=[self.docs[-1]],
                 more_documents_timestamp=1235,
                 expected_buffer=self.docs,
                 expected_oldest_doc_timestamp=1234,
@@ -107,7 +101,7 @@ class TestElasticBuffer(unittest.TestCase):
             'add twice with first add exceeding buffer size': TestCase(
                 documents=self.docs[:-1],
                 documents_timestamp=1234,
-                more_documents=self.docs[-1],
+                more_documents=[self.docs[-1]],
                 more_documents_timestamp=1235,
                 expected_buffer=[self.docs[-1]],
                 expected_oldest_doc_timestamp=1235,
@@ -117,7 +111,7 @@ class TestElasticBuffer(unittest.TestCase):
             'add twice with second add exceeding buffer size': TestCase(
                 documents=self.docs[:-1],
                 documents_timestamp=1234,
-                more_documents=self.docs[-1],
+                more_documents=[self.docs[-1]],
                 more_documents_timestamp=1235,
                 expected_buffer=[],
                 expected_oldest_doc_timestamp=None,
@@ -140,9 +134,9 @@ class TestElasticBuffer(unittest.TestCase):
             mock_flush.reset_mock()
             mock_flush.side_effect = test.eb._clear_buffer
 
-            test.eb.add(test.documents, timestamp=test.documents_timestamp)
+            test.eb._add(test.documents, timestamp=test.documents_timestamp)
             if test.more_documents:
-                test.eb.add(test.more_documents, timestamp=test.more_documents_timestamp)
+                test.eb._add(test.more_documents, timestamp=test.more_documents_timestamp)
             
             self.assertListEqual(test.eb._buffer, test.expected_buffer, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, test.expected_oldest_doc_timestamp, test_name)
@@ -211,6 +205,74 @@ class TestElasticBuffer(unittest.TestCase):
             # assert state was not cleared
             self.assertListEqual(test.eb._buffer, self.docs, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, self.timestamp, test_name)
+
+    def test__ensure_list(self):
+
+        series_list = [doc['c'] for doc in self.docs]
+
+        class TestCase:
+            def __init__(self, docs_in, expected_docs):
+                self.docs_in = docs_in
+                self.expected_docs = expected_docs
+
+        tests = {
+            'dict': TestCase(
+                docs_in=self.docs[0],
+                expected_docs=[self.docs[0]],
+            ),
+            'list': TestCase(
+                docs_in=self.docs,
+                expected_docs=self.docs,
+            ),
+            'series': TestCase(
+                docs_in=pd.Series(series_list),
+                expected_docs=[{0: item} for item in series_list],
+            ),
+            'named series': TestCase(
+                docs_in=pd.Series(series_list).rename('my_name'),
+                expected_docs=[{'my_name': item} for item in series_list],
+            ),
+            'series with named index': TestCase(
+                docs_in=pd.Series(series_list).rename_axis('my_axis', axis=0),
+                expected_docs=[{0: item, 'my_axis': i} for i, item in enumerate(series_list)],
+            ),
+            'named series with named index': TestCase(
+                docs_in=pd.Series(series_list).rename_axis('my_axis', axis=0).rename('my_name'),
+                expected_docs=[{'my_name': item, 'my_axis': i} for i, item in enumerate(series_list)],
+            ),
+            'series with single row': TestCase(
+                docs_in=pd.Series(series_list[0]),
+                expected_docs=[{0: item} for item in [series_list[0]]],
+            ),
+            'named series with single row': TestCase(
+                docs_in=pd.Series(series_list[0]).rename('my_name'),
+                expected_docs=[{'my_name': item} for item in [series_list[0]]],
+            ),
+            'named series with single row with named index': TestCase(
+                docs_in=pd.Series(series_list[0]).rename_axis('my_index', axis=0).rename('my_name'),
+                expected_docs=[{'my_name': item, 'my_index': i} for i, item in enumerate([series_list[0]])],
+            ),
+            'dataframe': TestCase(
+                docs_in=pd.DataFrame(self.docs),
+                expected_docs=self.docs,
+            ),
+            'dataframe with named index': TestCase(
+                docs_in=pd.DataFrame(self.docs).set_index('c'),
+                expected_docs=self.docs,
+            ),
+            'dataframe with single row': TestCase(
+                docs_in=pd.DataFrame(self.docs[0], index=[0]),
+                expected_docs=[self.docs[0]],
+            ),
+            'dataframe with single row and named index': TestCase(
+                docs_in=pd.DataFrame(self.docs[0], index=[0]).set_index('c'),
+                expected_docs=[self.docs[0]],
+            ),
+        }
+
+        for test_name, test in tests.items():
+            docs_out = ElasticBuffer._ensure_list(test.docs_in)
+            self.assertListEqual(docs_out, test.expected_docs, test_name)
 
     @patch.object(ElasticBuffer, 'flush')
     def test_context_success(self, mock_flush):
@@ -285,7 +347,6 @@ class TestElasticBuffer(unittest.TestCase):
                     eb.add(docs)
                     raise ValueError()
             self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
-
 
     def test__get_oldest_elapsed_time_from(self):
 
