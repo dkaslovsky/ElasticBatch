@@ -1,19 +1,17 @@
-from __future__ import annotations
-
 import json
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional, Type, Union, types
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
 
-from elasticbatch.exceptions import (ElasticBufferErrorWrapper,
-                                     ElasticBufferFlushError)
+from elasticbatch.exceptions import ElasticBufferFlushError
 
 DocumentBundle = Union[Dict, List[Dict], pd.Series, pd.DataFrame]
+
 
 class ElasticBuffer:
 
@@ -23,7 +21,6 @@ class ElasticBuffer:
         client_kwargs: Optional[Dict[str, Any]] = None,
         bulk_kwargs: Optional[Dict[str, Any]] = None,
         verbose_errs: bool = True,
-        dump_on_err: bool = False,
         dump_dir: Optional[str] = None,
     ) -> None:
         """
@@ -31,17 +28,13 @@ class ElasticBuffer:
         :param client_kwargs: dict of kwargs for elasticsearch.Elasticsearch client configuration
         :param bulk_kwargs: dict of kwargs for elasticsearch.helpers.bulk insertion
         :param verbose_errs: whether full (True; default) or truncated (False) errors are raised
-        :param dump_on_err: whether to write buffer to a file on exception in context manager
-        :param dump_dir: directory to write file whern dumping buffer on exception
+        :param dump_dir: directory to write buffer contents when exiting context due to raised
+          exception; pass None to not write to file (default)
         """
 
         self.size = size
         self.verbose_errs = verbose_errs
-
-        self.dump_on_err = dump_on_err
         self.dump_dir = dump_dir
-        if self.dump_on_err and self.dump_dir is None:
-            raise ValueError('Must specify dump_dir when dump_on_err is True')
 
         self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
@@ -50,43 +43,23 @@ class ElasticBuffer:
         self._buffer = []                  # type: List[Dict]
         self._oldest_doc_timestamp = None  # type: Optional[float]
 
-    def __str__(self) -> str:
-        """
-        Printable class information
-        """
+    def __str__(self):
         return f'{self.__class__.__name__} containing {len(self)} documents'
 
-    def __len__(self) -> int:
-        """
-        Return number of documents in buffer
-        """
+    def __len__(self):
         return len(self._buffer)
 
-    def __enter__(self) -> ElasticBuffer:
-        """
-        Enable context manager
-        """
+    def __enter__(self):
         return self
 
-    def __exit__(
-        self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[types.TracebackType],
-    ) -> None:
-        """
-        Ensure flush is called when exiting context unless exception is raised
-        :param exc_type: type of any exception raised inside the context
-        :param exc_val: value of any exception raised inside the context
-        :param exc_tb: Traceback of any exception raised inside the context
-        """
+    def __exit__(self, exc_type, exc_val, exc_tb):
         err_raised = any((exc_type, exc_val, exc_tb))
         # only flush if exiting without raised Exception
         if not err_raised:
             self.flush()
             return
         # write contents of buffer to file on Exception
-        if self.dump_on_err:
+        if self.dump_dir:
             self._to_file()
 
     @property
@@ -107,18 +80,23 @@ class ElasticBuffer:
         try:
             n_success, bulk_errs = bulk(self._client, self._buffer, **self.bulk_kwargs)
         except ElasticsearchException as err:
-            raise ElasticBufferFlushError(err, self.verbose_errs)
+            raise ElasticBufferFlushError(
+                msg='Error while bulk inserting buffer contents',
+                err=err,
+                verbose=self.verbose_errs,
+            )
 
         if len(bulk_errs) != 0:
             raise ElasticBufferFlushError(
-                ElasticBufferErrorWrapper(f'Bulk insertion errrors: {bulk_errs}'),
-                self.verbose_errs,
+                msg='Multiple bulk insertion errors',
+                err=bulk_errs,
+                verbose=self.verbose_errs,
             )
         if n_success != len(self):
             n_fail = len(self) - n_success
             raise ElasticBufferFlushError(
-                f'Failed to insert {n_fail} of {len(self)} documents',
-                self.verbose_errs,
+                msg=f'Failed to insert {n_fail} of {len(self)} documents',
+                verbose=self.verbose_errs,
             )
 
         # clear buffer on successfull bulk insert
@@ -180,7 +158,7 @@ class ElasticBuffer:
         """
         timestamp = time.time() if timestamp is None else timestamp
         dump_file = os.path.join(
-            self.dump_dir,
+            self.dump_dir,  # type: ignore  # function not called when None
             f'{self.__class__.__name__}_buffer_dump_{timestamp}'
         )
         with open(dump_file, 'w') as handle:

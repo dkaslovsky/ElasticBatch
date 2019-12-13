@@ -8,9 +8,7 @@ import pandas as pd
 from elasticsearch import ElasticsearchException
 
 from elasticbatch.buffer import ElasticBuffer
-from elasticbatch.exceptions import ElasticBatchError
-
-# pylint: disable=protected-access
+from elasticbatch.exceptions import ElasticBufferFlushError
 
 
 class TestElasticBuffer(unittest.TestCase):
@@ -48,7 +46,8 @@ class TestElasticBuffer(unittest.TestCase):
                 self.expected_flush_called = expected_flush_called
 
                 self.more_documents = [] if more_documents is None else more_documents
-                self.more_documents_timestamp = None if more_documents_timestamp is None else more_documents_timestamp
+                self.more_documents_timestamp = \
+                    None if more_documents_timestamp is None else more_documents_timestamp
 
                 self.eb = ElasticBuffer(size=buffer_size)
 
@@ -140,9 +139,13 @@ class TestElasticBuffer(unittest.TestCase):
             test.eb._add(test.documents, timestamp=test.documents_timestamp)
             if test.more_documents:
                 test.eb._add(test.more_documents, timestamp=test.more_documents_timestamp)
-            
+
             self.assertListEqual(test.eb._buffer, test.expected_buffer, test_name)
-            self.assertEqual(test.eb._oldest_doc_timestamp, test.expected_oldest_doc_timestamp, test_name)
+            self.assertEqual(
+                test.eb._oldest_doc_timestamp,
+                test.expected_oldest_doc_timestamp,
+                test_name
+            )
             if test.expected_flush_called:
                 mock_flush.assert_called()
             else:
@@ -165,11 +168,22 @@ class TestElasticBuffer(unittest.TestCase):
 
         # assert contents of buffer were passed to bulk
         (_, called_docs), _ = mock_bulk.call_args
-        self.assertListEqual(called_docs, self.docs, 'contents of buffer should have been passed to bulk')
+        self.assertListEqual(
+            called_docs,
+            self.docs,
+            'contents of buffer should have been passed to bulk'
+        )
 
         # assert state was cleared
-        self.assertListEqual(eb._buffer, [], 'buffer should be empty after successful insert')
-        self.assertIsNone(eb._oldest_doc_timestamp, 'timestamp should be None after successful insert')
+        self.assertListEqual(
+            eb._buffer,
+            [],
+            'buffer should be empty after successful insert'
+        )
+        self.assertIsNone(
+            eb._oldest_doc_timestamp,
+            'timestamp should be None after successful insert'
+        )
 
     @patch(f'{ElasticBuffer.__module__}.bulk')
     def test_flush_error(self, mock_bulk):
@@ -202,7 +216,7 @@ class TestElasticBuffer(unittest.TestCase):
             mock_bulk.return_value = test.return_value
             mock_bulk.side_effect = test.side_effect
 
-            with self.assertRaises(ElasticBatchError, msg=test_name):
+            with self.assertRaises(ElasticBufferFlushError, msg=test_name):
                 test.eb.flush()
 
             # assert state was not cleared
@@ -241,7 +255,9 @@ class TestElasticBuffer(unittest.TestCase):
             ),
             'named series with named index': TestCase(
                 docs_in=pd.Series(series_list).rename_axis('my_axis', axis=0).rename('my_name'),
-                expected_docs=[{'my_name': item, 'my_axis': i} for i, item in enumerate(series_list)],
+                expected_docs=[
+                    {'my_name': item, 'my_axis': i} for i, item in enumerate(series_list)
+                ],
             ),
             'series with single row': TestCase(
                 docs_in=pd.Series(series_list[0]),
@@ -253,7 +269,9 @@ class TestElasticBuffer(unittest.TestCase):
             ),
             'named series with single row with named index': TestCase(
                 docs_in=pd.Series(series_list[0]).rename_axis('my_index', axis=0).rename('my_name'),
-                expected_docs=[{'my_name': item, 'my_index': i} for i, item in enumerate([series_list[0]])],
+                expected_docs=[
+                    {'my_name': item, 'my_index': i} for i, item in enumerate([series_list[0]])
+                ],
             ),
             'dataframe': TestCase(
                 docs_in=pd.DataFrame(self.docs),
@@ -337,18 +355,22 @@ class TestElasticBuffer(unittest.TestCase):
                 n_docs=5,
                 buffer_size=2,
                 n_expected_flush_calls=1,
+
             ),
         }
 
+        default_err = ValueError
+
         for test_name, test in tests.items():
             mock_flush.reset_mock()
-            mock_flush.side_effect = ElasticBatchError
+            mock_flush.side_effect = ElasticBufferFlushError
+            err = ElasticBufferFlushError if test.n_expected_flush_calls > 0 else default_err
+            docs = [self.docs[0]] * test.n_docs
 
-            docs = ['a'] * test.n_docs
-            with self.assertRaises((ElasticBatchError, ValueError), msg=test_name):
+            with self.assertRaises(err, msg=test_name):
                 with ElasticBuffer(size=test.buffer_size) as eb:
                     eb.add(docs)
-                    raise ValueError()
+                    raise default_err()  # only raised when eb.add does not result in an Exception
             self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
 
     @patch(f'{ElasticBuffer.__module__}.open', side_effect=mock_open())

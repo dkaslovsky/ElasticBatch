@@ -2,8 +2,7 @@ import unittest
 
 from elasticsearch import ElasticsearchException
 
-from elasticbatch.exceptions import (ElasticBufferErrorWrapper,
-                                     ElasticBufferFlushError)
+from elasticbatch.exceptions import ElasticBufferFlushError
 
 
 class TestElasticBufferFlushError(unittest.TestCase):
@@ -11,58 +10,88 @@ class TestElasticBufferFlushError(unittest.TestCase):
     def test_str(self):
 
         class TestCase:
-            def __init__(self, err, verbose, expected_str):
+            def __init__(self, msg, err, verbose, expected_str):
+                self.msg = msg
                 self.err = err
                 self.verbose = verbose
                 self.expected_str = expected_str
 
         tests = {
-            'string error message with verbose=False': TestCase(
-                err='some error',
+            'msg and err are None, verbose=False': TestCase(
+                msg=None,
+                err=None,
                 verbose=False,
-                expected_str='some error',
+                expected_str=''
             ),
-            'string error message with verbose=True': TestCase(
-                err='some error',
+            'msg and err are None, verbose=True': TestCase(
+                msg=None,
+                err=None,
                 verbose=True,
-                expected_str='some error',
+                expected_str=''
             ),
-            'ValueError with verbose=False': TestCase(
-                err=ValueError('some error'),
+            'msg only, verbose=False': TestCase(
+                msg='error message',
+                err=None,
                 verbose=False,
-                expected_str='ValueError',
+                expected_str='error message',
             ),
-            'ValueError with verbose=True': TestCase(
-                err=ValueError('some error'),
+            'msg only, verbose=True': TestCase(
+                msg='error message',
+                err=None,
                 verbose=True,
-                expected_str='ValueError: some error',
+                expected_str='error message',
             ),
-            'ElasticsearchException with verbose=False (full module displayed)': TestCase(
-                err=ElasticsearchException('some error'),
+            'err is string, verbose=False': TestCase(
+                msg='error message',
+                err='we have a big problem',
                 verbose=False,
-                expected_str='elasticsearch.exceptions.ElasticsearchException',
+                expected_str='error message',
             ),
-            'ElasticsearchException with verbose=True (full module displayed)': TestCase(
-                err=ElasticsearchException('some error'),
+            'err is string, verbose=True': TestCase(
+                msg='error message',
+                err='we have a big problem',
                 verbose=True,
-                expected_str='elasticsearch.exceptions.ElasticsearchException: some error',
+                expected_str='error message: we have a big problem',
             ),
-            'ElasticBufferErrorWrapper with verbose=False': TestCase(
-                err=ElasticBufferErrorWrapper('long errors [err1, err2]'),
+            'err is list, verbose=False': TestCase(
+                msg='error message',
+                err=['error1', 'error2', 'error3'],
                 verbose=False,
-                expected_str=\
-                    f'{ElasticBufferErrorWrapper.__module__}.ElasticBufferErrorWrapper: '
-                    f'{ElasticBufferFlushError.truncated_msg}',
+                expected_str='error message',
             ),
-            'ElasticBufferErrorWrapper with verbose=False': TestCase(
-                err=ElasticBufferErrorWrapper('long errors [err1, err2]'),
+            'err is list, verbose=True': TestCase(
+                msg='error message',
+                err=['error1', 'error2', 'error3'],
                 verbose=True,
-                expected_str=\
-                    f'{ElasticBufferErrorWrapper.__module__}.ElasticBufferErrorWrapper: '
-                    f'long errors [err1, err2]',
+                expected_str='error message: [\'error1\', \'error2\', \'error3\']',
+            ),
+            'err is ValueError, verbose=False': TestCase(
+                msg='error message',
+                err=ValueError('we have a big problem'),
+                verbose=False,
+                expected_str='error message',
+            ),
+            'err is ValueError, verbose=True': TestCase(
+                msg='error message',
+                err=ValueError('we have a big problem'),
+                verbose=True,
+                expected_str='error message: ValueError: we have a big problem',
+            ),
+            'err is ElasticsearchException, verbose=False': TestCase(
+                msg='error message',
+                err=ElasticsearchException('we have a big problem'),
+                verbose=False,
+                expected_str='error message',
+            ),
+            'err is ElasticsearchException, verbose=True': TestCase(
+                msg='error message',
+                err=ElasticsearchException('we have a big problem'),
+                verbose=True,
+                expected_str='error message: elasticsearch.exceptions.ElasticsearchException: '
+                             'we have a big problem',
             ),
         }
 
         for test_name, test in tests.items():
-            err = ElasticBufferFlushError(test.err, test.verbose)
+            err = ElasticBufferFlushError(msg=test.msg, err=test.err, verbose=test.verbose)
             self.assertEqual(str(err), test.expected_str, test_name)
