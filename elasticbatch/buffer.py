@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import time
 from typing import Any, Dict, List, Optional, Type, Union, types
 
@@ -21,20 +22,26 @@ class ElasticBuffer:
         size: int = 5000,
         client_kwargs: Optional[Dict[str, Any]] = None,
         bulk_kwargs: Optional[Dict[str, Any]] = None,
-        dump_on_err: bool = False,
         verbose_errs: bool = True,
+        dump_on_err: bool = False,
+        dump_dir: Optional[str] = None,
     ) -> None:
         """
         :param size: number of documents buffer can hold before flushing to Elasticsearch
         :param client_kwargs: dict of kwargs for elasticsearch.Elasticsearch client configuration
         :param bulk_kwargs: dict of kwargs for elasticsearch.helpers.bulk insertion
-        :param dump_on_err: whether to write buffer to a file on exception in context manager
         :param verbose_errs: whether full (True; default) or truncated (False) errors are raised
+        :param dump_on_err: whether to write buffer to a file on exception in context manager
+        :param dump_dir: directory to write file whern dumping buffer on exception
         """
 
         self.size = size
         self.verbose_errs = verbose_errs
+
         self.dump_on_err = dump_on_err
+        self.dump_dir = dump_dir
+        if self.dump_on_err and self.dump_dir is None:
+            raise ValueError('Must specify dump_dir when dump_on_err is True')
 
         self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
@@ -169,12 +176,14 @@ class ElasticBuffer:
     def _to_file(self, timestamp: Optional[float] = None):
         """
         Write contents of buffer as ndjson file
+        :param timestamp: timestamp to associate with dumped file; defaults to now
         """
-        if len(self) == 0:
-            return
         timestamp = time.time() if timestamp is None else timestamp
-        file_name = f'{self.__class__.__name__}_buffer_dump_{timestamp}'
-        with open(file_name, 'w') as handle:
+        dump_file = os.path.join(
+            self.dump_dir,
+            f'{self.__class__.__name__}_buffer_dump_{timestamp}'
+        )
+        with open(dump_file, 'w') as handle:
             for doc in self._buffer:
                 handle.write(json.dumps(doc) + '\n')
 

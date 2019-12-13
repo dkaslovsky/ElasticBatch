@@ -1,5 +1,6 @@
 import json
 import math
+import os
 import unittest
 from unittest.mock import mock_open, patch
 
@@ -350,21 +351,35 @@ class TestElasticBuffer(unittest.TestCase):
                     raise ValueError()
             self.assertEqual(mock_flush.call_count, test.n_expected_flush_calls, test_name)
 
-    def test__to_file(self):
-        docs = [{'a': 1}, {'b': 2}]
-        content = json.dumps(docs[0]) + '\n' + json.dumps(docs[1]) + '\n'
-        with patch('elasticbatch.buffer.open', mock_open()) as mocked_file:
-            eb = ElasticBuffer()
-            eb.add(docs)
-            eb._to_file(timestamp=self.timestamp)
+    @patch(f'{ElasticBuffer.__module__}.open', side_effect=mock_open())
+    def test__to_file(self, mocked_file):
+        dump_dir = '/tmp'
 
-            file_name = f'{eb.__class__.__name__}_buffer_dump_{self.timestamp}'
-            mocked_file.assert_called_once_with(file_name, 'w')
-            #mocked_file().write.assert_called_with(content)
-            for doc in docs:
-                mocked_file().write.assert_called_with(json.dumps(doc) + '\n')
-            self.assertEqual(mocked_file().write.call_count, len(docs), 'msg')
+        eb = ElasticBuffer(dump_dir=dump_dir)
 
+        expected_dump_file = os.path.join(
+            dump_dir,
+            f'{eb.__class__.__name__}_buffer_dump_{self.timestamp}',
+        )
+
+        eb.add(self.docs)
+        eb._to_file(timestamp=self.timestamp)
+
+        mocked_file.assert_called_once_with(expected_dump_file, 'w')
+
+        self.assertEqual(
+            mocked_file().write.call_count,
+            len(self.docs),
+            'write should be called once for every document'
+        )
+
+        expected_write_call_args = [json.dumps(doc) + '\n' for doc in self.docs]
+        write_call_args = [arg[0][0] for arg in mocked_file().write.call_args_list]
+        self.assertListEqual(
+            write_call_args,
+            expected_write_call_args,
+            'write should be called with each document (json serialized and newline)'
+        )
 
     def test__get_oldest_elapsed_time_from(self):
 
