@@ -1,4 +1,8 @@
 # ElasticBatch
+
+[![Build Status](https://travis-ci.com/dkaslovsky/ElasticBatch.svg?branch=master
+)](https://travis-ci.com/dkaslovsky/ElasticBatch)
+
 Elasticsearch bulk writer for batch processing
 
 Implementation of a pattern for bulk insertion of documents into Elasticsearch useful when
