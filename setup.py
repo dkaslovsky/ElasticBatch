@@ -1,6 +1,7 @@
 from setuptools import find_packages, setup
 
-description = 'TBD'
+description = \
+    'Elasticsearch buffer for collecting and batch inserting Python data and pandas DataFrames'
 
 with open('README.md') as f:
     long_description = f.read()
@@ -16,6 +17,7 @@ keywords = [
     'elasticsearch',
     'python',
     'pandas',
+    'dataframes',
     'batch-processing',
 ]
 
