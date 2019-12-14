@@ -10,7 +10,7 @@ install:
   - pip install coveralls
 
 script:
-  - green
+  - green -r
 
 after_success:
   - coveralls
