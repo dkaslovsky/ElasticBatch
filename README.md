@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.com/dkaslovsky/ElasticBatch.svg?branch=master
 )](https://travis-ci.com/dkaslovsky/ElasticBatch)
+[![Coverage Status](https://coveralls.io/repos/github/dkaslovsky/ElasticBatch/badge.svg?branch=master)](https://coveralls.io/github/dkaslovsky/ElasticBatch?branch=master)
 
 Elasticsearch bulk writer for batch processing
 
