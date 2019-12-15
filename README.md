@@ -8,10 +8,6 @@ Elasticsearch buffer for collecting and batch inserting Python data and pandas D
 [![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
 [![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
 
-
-### Updates
-2019-12-14: Work in progress nearing completion; full description to come
-
 ### Overview
 An efficient pattern when processing data bound for [Elasticsearch](https://www.elastic.co/products/elasticsearch) is to collect data records ("documents") in a buffer to be bulk-inserted into Elasticsearch in a single batch.  `ElasticBatch` provides this functionality to ease the overhead and reduce the code involved in inserting large batches or streams of data into Elasticsearch.  In particular, `ElasticBatch` makes it easy to efficiently insert batches of data in the form of Python dictionaries or [pandas](https://pandas.pydata.org/) [DataFrames](https://pandas.pydata.org/pandas-docs/stable/getting_started/dsintro.html#dataframe) into Elasticsearch.
 
@@ -50,6 +46,97 @@ $ pip install .
 ```
 
 ### Usage
+
+#### Basic Usage
+To begin with basic usage, start by importing the `ElasticBuffer` class:
+```
+>>> from elasticbatch import ElasticBuffer
+```
+`ElasticBuffer` uses sensible defaults when initialized without parameters:
+```
+>>> esbuf = ElasticBuffer()
+```
+Alternatively, one can pass any of the following parameters:
+- list
+- of
+- params
+- goes
+- here
+
+Once initialized, `ElasticBuffer` exposes two methods, `add` and `flush`.
+Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of docuemnts exceeds the buffer's size:
+```
+>>> docs = [
+        {'_index': 'my-index', 'a': 1, 'b': 2.1, 'c': 'xyz'},
+        {'_index': 'my-index', 'a': 3, 'b': 4.1, 'c': 'xyy'},
+        {'_index': 'my-other-index', 'a': 5, 'b': 6.1, 'c': 'zzz'},
+        {'_index': 'my-other-index', 'a': 7, 'b': 8.1, 'c': 'zyx'},
+    ]
+>>> esbuf.add(docs)
+```
+Note that all metadata fields required for indexing into Elasticsearch (e.g., `_index` above) must either be included in each document __or added programatically via callable parameters supplied to the `ElasticBuffer` instance (see below)__.
+
+To manually force a buffer flush and insert all documents to Elasticsearch, use the `flush` method which does not accept any arguments:
+```
+>>> esbuf.flush()
+```
+
+#### pandas DataFrames
+
+Alternatively, one can directly insert a pandas DataFrame into the buffer and each row will be treated as a document:
+```
+>>> import pandas as pd
+>>> df = pd.DataFrame(docs)
+>>> print(df)
+```
+```
+           _index  a    b    c
+0        my-index  1  2.1  xyz
+1        my-index  3  4.1  xyy
+2  my-other-index  5  6.1  zzz
+3  my-other-index  7  8.1  zyx
+```
+```
+>>> esbuf.add(df)
+```
+The DataFrame's index (referring to `df.index` and __not__ the column `_index`) is ignored unless it is named, in which case it is added as an ordinary field (column).
+
+#### As a Context Manager
+
+`ElasticBuffer` can also be used as a context manager, offering the advantages of automatically flushing the remaining buffer contents when exiting scope as well as optionally dumping the buffer contents to a file before exiting due to an unhandled exception.
+```
+>>> with ElasticBuffer(size=100, dump_dir='/tmp') as esbuf:
+       for doc in document_stream:
+           doc = process_document(doc)  # some user-defined application-specific processing function
+           esbuf.add(doc)
+```
+
+#### Elapsed Time
+
+When using `ElasticBuffer` in a service consuming messages from some external source, it can be important to track how long messages have been waiting in the buffer to be flushed.  In particular, a user may wish to flush, say, every hour to account for the situation where only a trickle of data is coming in and the buffer is not filling up.  `ElasticBuffer` provides the elapsed time (in seconds) that its oldest message has been in the buffer:
+```
+>>> esbuf.oldest_elapsed_time
+```
+```
+5.687833070755005  # the oldest message was inserted ~5.69 seconds ago
+```
+This information can be used to periodically check the elapsed insert time of the oldest message and force a flush if it exceeds a user's threshold:
+```
+Show example pattern here? 
+```
+
+__Include usage of kwarg callables to add metadata__
+
+__Include usage of ack functions__
+
+For exception handing, `ElasticBatch` provides the base exception `ElasticBatchError`:
+```
+>>> from elasticbatch import ElasticBatchError
+```
+as well as the more specific `ElasticBufferFlushError` raised on errors flushing to Elasticsearch:
+```
+>>> from elasticbatch.exceptions import ElasticBufferFlushError
+```
 
 ### Tests
 To run tests:
