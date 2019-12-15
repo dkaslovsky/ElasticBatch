@@ -8,10 +8,10 @@ Elasticsearch buffer for collecting and batch inserting Python data and pandas D
 [![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
 [![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
 
-### Overview
+## Overview
 An efficient pattern when processing data bound for [Elasticsearch](https://www.elastic.co/products/elasticsearch) is to collect data records ("documents") in a buffer to be bulk-inserted into Elasticsearch in a single batch.  `ElasticBatch` provides this functionality to ease the overhead and reduce the code involved in inserting large batches or streams of data into Elasticsearch.  In particular, `ElasticBatch` makes it easy to efficiently insert batches of data in the form of Python dictionaries or [pandas](https://pandas.pydata.org/) [DataFrames](https://pandas.pydata.org/pandas-docs/stable/getting_started/dsintro.html#dataframe) into Elasticsearch.
 
-### Features
+## Features
 `ElasticBatch` implements the following features (see [Usage](#usage) for examples and more details):
 - Work with documents as lists of dicts or as rows of pandas DataFrames
 - Add documents to a buffer that will automatically flush (insert its contents to Elasticsearch) when it is full
@@ -22,7 +22,7 @@ An efficient pattern when processing data bound for [Elasticsearch](https://www.
 - __Future__: Programatically add Elasticsearch metadata to each document
 - __Future__: Automatically ack messages immediately after successful insertion into Elasticsearch when streaming from a queue
 
-### Installation
+## Installation
 This package __will be__ hosted on PyPI and can be installed via `pip`:
 - To install with the ability to process pandas DataFrames:
   ```
@@ -45,9 +45,9 @@ To install from source without the `pandas` dependency, replace the last line ab
 $ pip install .
 ```
 
-### Usage
+## Usage
 
-#### Basic Usage
+### Basic Usage
 To begin with basic usage, start by importing the `ElasticBuffer` class:
 ```
 >>> from elasticbatch import ElasticBuffer
@@ -81,7 +81,7 @@ To manually force a buffer flush and insert all documents to Elasticsearch, use 
 >>> esbuf.flush()
 ```
 
-#### pandas DataFrames
+### pandas DataFrames
 
 Alternatively, one can directly insert a pandas DataFrame into the buffer and each row will be treated as a document:
 ```
@@ -101,7 +101,7 @@ Alternatively, one can directly insert a pandas DataFrame into the buffer and ea
 ```
 The DataFrame's index (referring to `df.index` and __not__ the column `_index`) is ignored unless it is named, in which case it is added as an ordinary field (column).
 
-#### As a Context Manager
+### Context Manager
 
 `ElasticBuffer` can also be used as a context manager, offering the advantages of automatically flushing the remaining buffer contents when exiting scope as well as optionally dumping the buffer contents to a file before exiting due to an unhandled exception.
 ```
@@ -111,7 +111,7 @@ The DataFrame's index (referring to `df.index` and __not__ the column `_index`) 
            esbuf.add(doc)
 ```
 
-#### Elapsed Time
+### Elapsed Time
 
 When using `ElasticBuffer` in a service consuming messages from some external source, it can be important to track how long messages have been waiting in the buffer to be flushed.  In particular, a user may wish to flush, say, every hour to account for the situation where only a trickle of data is coming in and the buffer is not filling up.  `ElasticBuffer` provides the elapsed time (in seconds) that its oldest message has been in the buffer:
 ```
@@ -138,7 +138,7 @@ as well as the more specific `ElasticBufferFlushError` raised on errors flushing
 >>> from elasticbatch.exceptions import ElasticBufferFlushError
 ```
 
-### Tests
+## Tests
 To run tests:
 ```
 $ python -m unittest discover -v
