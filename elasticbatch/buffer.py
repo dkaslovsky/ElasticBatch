@@ -2,15 +2,13 @@ import json
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
-import pandas as pd
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
 
 from elasticbatch.exceptions import ElasticBufferFlushError
-
-DocumentBundle = Union[Dict, List[Dict], pd.Series, pd.DataFrame]
+from elasticbatch.types import DocumentBundle, no_pandas
 
 
 class ElasticBuffer:
@@ -171,12 +169,22 @@ class ElasticBuffer:
             return docs
         if isinstance(docs, dict):
             return [docs]
-        if isinstance(docs, pd.Series):
+        if no_pandas:
+            raise ValueError('Must pass one of [List, Dict]')
+
+        # docs is a pandas Series
+        try:
             docs = docs.to_frame()
-        if isinstance(docs, pd.DataFrame):
+        except AttributeError:
+            pass
+
+        # docs is a pandas DataFrame
+        try:
             if docs.index.name:
                 docs = docs.reset_index()
             return docs.to_dict(orient='records')
+        except AttributeError:
+            pass
         raise ValueError('Must pass one of [List, Dict, pandas.Series, pandas.DataFrame]')
 
     @staticmethod

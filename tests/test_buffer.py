@@ -4,11 +4,15 @@ import os
 import unittest
 from unittest.mock import mock_open, patch
 
-import pandas as pd
 from elasticsearch import ElasticsearchException
 
 from elasticbatch.buffer import ElasticBuffer
 from elasticbatch.exceptions import ElasticBufferFlushError
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 
 
 class TestElasticBuffer(unittest.TestCase):
@@ -223,7 +227,45 @@ class TestElasticBuffer(unittest.TestCase):
             self.assertListEqual(test.eb._buffer, self.docs, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, self.timestamp, test_name)
 
-    def test__ensure_list(self):
+    def test__ensure_list_no_pandas(self):
+
+        class TestCase:
+            def __init__(self, docs_in, expected_docs):
+                self.docs_in = docs_in
+                self.expected_docs = expected_docs
+
+        tests_success = {
+            'dict': TestCase(
+                docs_in=self.docs[0],
+                expected_docs=[self.docs[0]],
+            ),
+            'list': TestCase(
+                docs_in=self.docs,
+                expected_docs=self.docs,
+            ),
+        }
+
+        tests_fail = {
+            'string input': TestCase(
+                docs_in='docs',
+                expected_docs=None,
+            ),
+            'set input': TestCase(
+                docs_in={'docs'},
+                expected_docs=None,
+            ),
+        }
+
+        for test_name, test in tests_success.items():
+            docs_out = ElasticBuffer._ensure_list(test.docs_in)
+            self.assertListEqual(docs_out, test.expected_docs, test_name)
+
+        for test_name, test in tests_fail.items():
+            with self.assertRaises(ValueError, msg=test_name):
+                _ = ElasticBuffer._ensure_list(test.docs_in)
+
+    @unittest.skipIf(pd is None, 'skipping test with pandas data because pandas not found')
+    def test__ensure_list_with_pandas(self):
 
         series_list = [doc['c'] for doc in self.docs]
 
@@ -233,14 +275,6 @@ class TestElasticBuffer(unittest.TestCase):
                 self.expected_docs = expected_docs
 
         tests = {
-            'dict': TestCase(
-                docs_in=self.docs[0],
-                expected_docs=[self.docs[0]],
-            ),
-            'list': TestCase(
-                docs_in=self.docs,
-                expected_docs=self.docs,
-            ),
             'series': TestCase(
                 docs_in=pd.Series(series_list),
                 expected_docs=[{0: item} for item in series_list],

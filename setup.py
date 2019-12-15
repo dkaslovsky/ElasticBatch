@@ -9,6 +9,7 @@ with open('README.md') as f:
 requirements = [
     'elasticsearch',
 ]
+
 extras = {
    'pandas': ['pandas']
 }
