@@ -113,14 +113,10 @@ The DataFrame's index (referring to `df.index` and __not__ the column `_index`) 
 When using `ElasticBuffer` in a service consuming messages from some external source, it can be important to track how long messages have been waiting in the buffer to be flushed.  In particular, a user may wish to flush, say, every hour to account for the situation where only a trickle of data is coming in and the buffer is not filling up.  `ElasticBuffer` provides the elapsed time (in seconds) that its oldest message has been in the buffer:
 ```
 >>> esbuf.oldest_elapsed_time
-```
-```
+
 5.687833070755005  # the oldest message was inserted ~5.69 seconds ago
 ```
-This information can be used to periodically check the elapsed insert time of the oldest message and force a flush if it exceeds a user's threshold:
-```
-Show example pattern here? 
-```
+This information can be used to periodically check the elapsed insert time of the oldest message and force a flush if it exceeds a desired threshold.
 
 ### Automatic Elasticsearch Metadata Fields
 
