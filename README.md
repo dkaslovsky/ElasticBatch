@@ -87,15 +87,13 @@ Alternatively, one can directly insert a pandas DataFrame into the buffer and ea
 >>> import pandas as pd
 >>> df = pd.DataFrame(docs)
 >>> print(df)
-```
-```
+
            _index  a    b    c
 0        my-index  1  2.1  xyz
 1        my-index  3  4.1  xyy
 2  my-other-index  5  6.1  zzz
 3  my-other-index  7  8.1  zyx
-```
-```
+
 >>> esbuf.add(df)
 ```
 The DataFrame's index (referring to `df.index` and __not__ the column `_index`) is ignored unless it is named, in which case it is added as an ordinary field (column).
@@ -138,9 +136,9 @@ An `ElasticBuffer` instance can be initialized with kwargs corresponding to call
         {'a': 8, 'b': 9},
     ]
 >>> esbuf.add(docs)
+
 >>> esbuf.show()
-```
-```
+
 {"a": 1, "b": 2, "_index": "my-index", "_id": 3}
 {"a": 8, "b": 9, "_index": "my-index", "_id": 17}
 ```
