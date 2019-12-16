@@ -73,7 +73,7 @@ Use `add` to add documents to the buffer, noting that all documents in the buffe
     ]
 >>> esbuf.add(docs)
 ```
-Note that all metadata fields required for indexing into Elasticsearch (e.g., `_index` above) must either be included in each document __or added programatically via callable parameters supplied to the `ElasticBuffer` instance (see below)__.
+Note that all metadata fields required for indexing into Elasticsearch (e.g., `_index` above) must either be included in each document or added [programmatically](#automatic-elasticsearch-metadata-fields) via callable kwarg parameters supplied to the `ElasticBuffer` instance (see below).
 
 To manually force a buffer flush and insert all documents to Elasticsearch, use the `flush` method which does not accept any arguments:
 ```
