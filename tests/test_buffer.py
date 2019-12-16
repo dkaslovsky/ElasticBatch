@@ -227,6 +227,63 @@ class TestElasticBuffer(unittest.TestCase):
             self.assertListEqual(test.eb._buffer, self.docs, test_name)
             self.assertEqual(test.eb._oldest_doc_timestamp, self.timestamp, test_name)
 
+    def test__apply_metadata_funcs(self):
+
+        class TestCase:
+            def __init__(self, docs_in, metadata_funcs, expected_docs):
+                self.docs_in = docs_in
+                self.metadata_funcs = metadata_funcs
+                self.expected_docs = expected_docs
+
+        def _index(doc): return 'my-index'
+        def _id(doc): return sum(doc.values())
+
+        tests = {
+            'no metadata funcs': TestCase(
+                docs_in=[
+                    {'a': 1, 'b': 2},
+                    {'a': 8, 'b': 9},
+                ],
+                metadata_funcs={},
+                expected_docs=[
+                    {'a': 1, 'b': 2},
+                    {'a': 8, 'b': 9},
+                ],
+            ),
+            'single metadata func': TestCase(
+                docs_in=[
+                    {'a': 1, 'b': 2},
+                    {'a': 8, 'b': 9},
+                ],
+                metadata_funcs={
+                    '_index': _index,
+                },
+                expected_docs=[
+                    {'a': 1, 'b': 2, '_index': 'my-index'},
+                    {'a': 8, 'b': 9, '_index': 'my-index'},
+                ],
+            ),
+            'multiple metadata funcs': TestCase(
+                docs_in=[
+                    {'a': 1, 'b': 2},
+                    {'a': 8, 'b': 9},
+                ],
+                metadata_funcs={
+                    '_index': _index,
+                    '_id': _id,
+                },
+                expected_docs=[
+                    {'a': 1, 'b': 2, '_index': 'my-index', '_id': 3},
+                    {'a': 8, 'b': 9, '_index': 'my-index', '_id': 17},
+                ],
+            ),
+        }
+
+        for test_name, test in tests.items():
+            eb = ElasticBuffer(**test.metadata_funcs)
+            docs_out = eb._apply_metadata_funcs(test.docs_in)
+            self.assertListEqual(docs_out, test.expected_docs, test_name)
+
     def test__ensure_list_no_pandas(self):
 
         class TestCase:

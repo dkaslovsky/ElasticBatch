@@ -2,7 +2,7 @@ import json
 import math
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from elasticsearch import Elasticsearch, ElasticsearchException
 from elasticsearch.helpers import bulk
@@ -20,6 +20,7 @@ class ElasticBuffer:
         bulk_kwargs: Optional[Dict[str, Any]] = None,
         verbose_errs: bool = True,
         dump_dir: Optional[str] = None,
+        **metadata_funcs: Callable[[Dict], Any],
     ) -> None:
         """
         :param size: number of documents buffer can hold before flushing to Elasticsearch
@@ -28,11 +29,20 @@ class ElasticBuffer:
         :param verbose_errs: whether full (True; default) or truncated (False) errors are raised
         :param dump_dir: directory to write buffer contents when exiting context due to raised
           exception; pass None to not write to file (default)
+        :param metadata_funcs: optional functions for generating Elasticsearch metadata fields
+          (e.g., _index, _id) that will be appended to the top level of every document. Each
+          function must accept one argument (the document as a dict) and return one value.
+          The resulting document will contain a new key/value pair corresponding to the function
+          name (key) and function return (value). For the case of DataFrame input, the functions
+          are applied to the documents generated from the DataFrame. It is generally more efficient
+          to add documents already containing these metadata fields rather than generating metadata
+          via these functions.
         """
 
         self.size = size
         self.verbose_errs = verbose_errs
         self.dump_dir = dump_dir
+        self.metadata_funcs = metadata_funcs
 
         self.bulk_kwargs = self._construct_bulk_kwargs(size, bulk_kwargs)
 
@@ -97,7 +107,7 @@ class ElasticBuffer:
                 verbose=self.verbose_errs,
             )
 
-        # clear buffer on successfull bulk insert
+        # clear buffer on successful bulk insert
         self._clear_buffer()
 
     def add(self, docs: DocumentBundle, timestamp: Optional[float] = None) -> None:
@@ -107,7 +117,7 @@ class ElasticBuffer:
         :param timestamp: seconds from epoch to associate as insert time for docs; defaults to now
         """
         docs_list = self._ensure_list(docs)
-
+        docs_list = self._apply_metadata_funcs(docs_list)
         timestamp = time.time() if timestamp is None else timestamp
         self._add(docs_list, timestamp)
 
@@ -130,17 +140,16 @@ class ElasticBuffer:
         if len(self) > self.size:
             self.flush()
 
-    def _get_oldest_elapsed_time_from(self, timestamp: float) -> float:
+    def _apply_metadata_funcs(self, docs: List[Dict]) -> List[Dict]:
         """
-        Return elapsed seconds between timestamp and insert time of oldest document in the buffer
-        :param timestamp: timestamp in seconds (usually from epoch)
+        Return list of documents updated with the result of metadata functions
+        :param docs: documents on which to apply metadata functions
         """
-        if self._oldest_doc_timestamp is None:
-            return -math.inf
-        try:
-            return timestamp - self._oldest_doc_timestamp
-        except TypeError:
-            raise TypeError('Cannot use non-float as numeric value for computing elapsed time')
+        if not self.metadata_funcs:
+            return docs
+        for doc in docs:
+            doc.update({field: func(doc) for field, func in self.metadata_funcs.items()})
+        return docs
 
     def _clear_buffer(self) -> None:
         """
@@ -162,6 +171,18 @@ class ElasticBuffer:
         with open(dump_file, 'w') as handle:
             for doc in self._buffer:
                 handle.write(json.dumps(doc) + '\n')
+
+    def _get_oldest_elapsed_time_from(self, timestamp: float) -> float:
+        """
+        Return elapsed seconds between timestamp and insert time of oldest document in the buffer
+        :param timestamp: timestamp in seconds (usually from epoch)
+        """
+        if self._oldest_doc_timestamp is None:
+            return -math.inf
+        try:
+            return timestamp - self._oldest_doc_timestamp
+        except TypeError:
+            raise TypeError('Cannot use non-float as numeric value for computing elapsed time')
 
     @staticmethod
     def _ensure_list(docs: DocumentBundle) -> List[Dict]:
