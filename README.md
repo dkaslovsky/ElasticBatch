@@ -22,7 +22,7 @@ An efficient pattern when processing data bound for [Elasticsearch](https://www.
 - Automatically add Elasticsearch metadata fields (e.g., `_index`, `_id`) to each document via user-supplied functions
 
 ## Installation
-This package __will be__ hosted on PyPI and can be installed via `pip`:
+This package is hosted on PyPI and can be installed via `pip`:
 - To install with the ability to process pandas DataFrames:
   ```
   $ pip install elasticbatch[pandas]
@@ -56,11 +56,12 @@ To begin with basic usage, start by importing the `ElasticBuffer` class:
 >>> esbuf = ElasticBuffer()
 ```
 Alternatively, one can pass any of the following parameters:
-- list
-- of
-- params
-- goes
-- here
+- `size`: int number of documents the buffer can hold before flushing to Elasticsearch.
+- `client_kwargs`: dict of configuration kwargs passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available kwargs.
+- `bulk_kwargs`: dict of configuration kwargs passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available kwargs.
+- `verbose_errs`: bool for whether full (True; default) or truncated (False) Exceptions are raised.  See [Exception Handling](#exception-handling) for more details.
+- `dump_dir`: string directory to write buffer contents when exiting context due to raised Exception; pass None to not write to file (default).
+- `metadata_funcs`: dict (passed as kwargs) of functions to apply to each document for adding Elasticsearch metadata.  See [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
 
 Once initialized, `ElasticBuffer` exposes two methods, `add` and `flush`.
 Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of docuemnts exceeds the buffer's size:
