@@ -121,6 +121,13 @@ class ElasticBuffer:
         timestamp = time.time() if timestamp is None else timestamp
         self._add(docs_list, timestamp)
 
+    def show(self) -> None:
+        """
+        Print each (json-serialized) document in the buffer on a new line
+        """
+        for doc in self._buffer:
+            print(json.dumps(doc))
+
     def _add(self, docs: List[Dict], timestamp: float) -> None:
         """
         Add list of documents to buffer
