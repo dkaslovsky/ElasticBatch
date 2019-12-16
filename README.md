@@ -19,8 +19,7 @@ An efficient pattern when processing data bound for [Elasticsearch](https://www.
 - Track the elapsed time a document has been in the buffer, allowing a user to flush the buffer at a desired time interval even when it is not full
 - Work within a context manager that will automatically flush before exiting, alleviating the need for extra code to ensure all documents are written to the database
 - Optionally dump the buffer contents (documents) to a file before exiting due to an uncaught exception
-- __Future__: Programatically add Elasticsearch metadata to each document
-- __Future__: Automatically ack messages immediately after successful insertion into Elasticsearch when streaming from a queue
+- Automatically add Elasticsearch metadata fields (e.g., `_index`, `_id`) to each document via user-supplied functions
 
 ## Installation
 This package __will be__ hosted on PyPI and can be installed via `pip`:
@@ -125,9 +124,31 @@ This information can be used to periodically check the elapsed insert time of th
 Show example pattern here? 
 ```
 
-__Include usage of kwarg callables to add metadata__
+### Automatic Elasticsearch Metadata Fields
 
-__Include usage of ack functions__
+An `ElasticBuffer` instance can be initialized with kwargs corresponding to callable functions to insert [Elasticsearch metadata](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-fields.html) fields to each message inserted into the buffer:
+```
+>>> def my_index_func(doc): return 'my-index'
+>>> def my_id_func(doc): return sum(doc.values())
+
+>>> esbuf = ElasticBuffer(_index=my_index_func, _id=my_id_func)
+
+>>> docs = [
+        {'a': 1, 'b': 2},
+        {'a': 8, 'b': 9},
+    ]
+>>> esbuf.add(docs)
+>>> esbuf.show()
+```
+```
+{"a": 1, "b": 2, "_index": "my-index", "_id": 3}
+{"a": 8, "b": 9, "_index": "my-index", "_id": 17}
+```
+Callable kwargs add key/value pairs to each document, where the key corresponds to the name of the kwarg and the value is the function's return value.  This works for DataFrames, as they are transformed to documents/dicts before applying the supplied metadata functions.
+
+The key/value pairs are added to the top level of each document; __this means that the user does not (and should not) add documents with data nested under a `_source` key__.  For further details, see the underlying Elasticsearch client [bulk insert](https://elasticsearch-py.readthedocs.io/en/master/helpers.html) documentation on handling of metadata fields in flat dicts.
+
+### Exception Handling
 
 For exception handing, `ElasticBatch` provides the base exception `ElasticBatchError`:
 ```
