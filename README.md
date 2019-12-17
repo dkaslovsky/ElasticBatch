@@ -83,6 +83,8 @@ To manually force a buffer flush and insert all documents to Elasticsearch, use 
 >>> esbuf.flush()
 ```
 
+A third method, `show()`, exists mostly for debug purposes and prints all documents currently in the buffer as newline-delimited json.
+
 ### pandas DataFrames
 
 Alternatively, one can directly insert a pandas DataFrame into the buffer and each row will be treated as a document:
