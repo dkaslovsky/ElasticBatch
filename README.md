@@ -9,10 +9,12 @@ Elasticsearch buffer for collecting and batch inserting Python data and pandas D
 [![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
 
 ## Overview
-An efficient pattern when processing data bound for [Elasticsearch](https://www.elastic.co/products/elasticsearch) is to collect data records ("documents") in a buffer to be bulk-inserted into Elasticsearch in a single batch.  `ElasticBatch` provides this functionality to ease the overhead and reduce the code involved in inserting large batches or streams of data into Elasticsearch.  In particular, `ElasticBatch` makes it easy to efficiently insert batches of data in the form of Python dictionaries or [pandas](https://pandas.pydata.org/) [DataFrames](https://pandas.pydata.org/pandas-docs/stable/getting_started/dsintro.html#dataframe) into Elasticsearch.
+`ElasticBatch` makes it easy to efficiently insert batches of data in the form of Python dictionaries or [pandas](https://pandas.pydata.org/) [DataFrames](https://pandas.pydata.org/pandas-docs/stable/getting_started/dsintro.html#dataframe) into Elasticsearch.  An efficient pattern when processing data bound for [Elasticsearch](https://www.elastic.co/products/elasticsearch) is to collect data records ("documents") in a buffer to be bulk-inserted in batches.  `ElasticBatch` provides this functionality to ease the overhead and reduce the code involved in inserting large batches or streams of data into Elasticsearch.
+
+`ElasticBatch` has been tested with Elasticsearch 7.x, but _should_ work with earlier versions.
 
 ## Features
-`ElasticBatch` implements the following features (see [Usage](#usage) for examples and more details):
+`ElasticBatch` implements the following features (see [Usage](#usage) for examples and more details) that allow a user to:
 - Work with documents as lists of dicts or as rows of pandas DataFrames
 - Add documents to a buffer that will automatically flush (insert its contents to Elasticsearch) when it is full
 - Handle all interaction with and configuration of the underlying Elasticsearch client while remaining configurable by the user if so desired
@@ -47,7 +49,7 @@ $ pip install .
 ## Usage
 
 ### Basic Usage
-To begin with basic usage, start by importing the `ElasticBuffer` class:
+Start by importing the `ElasticBuffer` class:
 ```
 >>> from elasticbatch import ElasticBuffer
 ```
@@ -56,12 +58,12 @@ To begin with basic usage, start by importing the `ElasticBuffer` class:
 >>> esbuf = ElasticBuffer()
 ```
 Alternatively, one can pass any of the following parameters:
-- `size`: int number of documents the buffer can hold before flushing to Elasticsearch.
-- `client_kwargs`: dict of configuration kwargs passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available kwargs.
-- `bulk_kwargs`: dict of configuration kwargs passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available kwargs.
-- `verbose_errs`: bool for whether full (True; default) or truncated (False) Exceptions are raised.  See [Exception Handling](#exception-handling) for more details.
-- `dump_dir`: string directory to write buffer contents when exiting context due to raised Exception; pass None to not write to file (default).
-- `metadata_funcs`: dict (passed as kwargs) of functions to apply to each document for adding Elasticsearch metadata.  See [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
+- `size`: `[int]` number of documents the buffer can hold before flushing to Elasticsearch.
+- `client_kwargs`: `[dict]` configuration kwargs passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available kwargs.
+- `bulk_kwargs`: `[dict]` configuration kwargs passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available kwargs.
+- `verbose_errs`: `[bool]` whether full (True; default) or truncated (False) exceptions are raised.  See [Exception Handling](#exception-handling) for more details.
+- `dump_dir`: `[str]` directory to write buffer contents when exiting context due to raised Exception; pass None to not write to file (default).
+- `**metadata_funcs`: `[callable]` functions to apply to each document for adding Elasticsearch metadata.  See [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
 
 Once initialized, `ElasticBuffer` exposes two methods, `add` and `flush`.
 Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of docuemnts exceeds the buffer's size:
@@ -117,11 +119,11 @@ When using `ElasticBuffer` in a service consuming messages from some external so
 
 5.687833070755005  # the oldest message was inserted ~5.69 seconds ago
 ```
-This information can be used to periodically check the elapsed insert time of the oldest message and force a flush if it exceeds a desired threshold.
+This information can be used to periodically check the elapsed time of the oldest message and force a flush if it exceeds a desired threshold.
 
 ### Automatic Elasticsearch Metadata Fields
 
-An `ElasticBuffer` instance can be initialized with kwargs corresponding to callable functions to insert [Elasticsearch metadata](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-fields.html) fields to each message inserted into the buffer:
+An `ElasticBuffer` instance can be initialized with kwargs corresponding to callable functions to add [Elasticsearch metadata](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-fields.html) fields to each message added to the buffer:
 ```
 >>> def my_index_func(doc): return 'my-index'
 >>> def my_id_func(doc): return sum(doc.values())
@@ -139,9 +141,9 @@ An `ElasticBuffer` instance can be initialized with kwargs corresponding to call
 {"a": 1, "b": 2, "_index": "my-index", "_id": 3}
 {"a": 8, "b": 9, "_index": "my-index", "_id": 17}
 ```
-Callable kwargs add key/value pairs to each document, where the key corresponds to the name of the kwarg and the value is the function's return value.  This works for DataFrames, as they are transformed to documents/dicts before applying the supplied metadata functions.
+Callable kwargs add key/value pairs to each document, where the key corresponds to the name of the kwarg and the value is the function's return value.  This works for DataFrames, as they are transformed to documents (dicts) before applying the supplied metadata functions.
 
-The key/value pairs are added to the top level of each document; __this means that the user does not (and should not) add documents with data nested under a `_source` key__.  For further details, see the underlying Elasticsearch client [bulk insert](https://elasticsearch-py.readthedocs.io/en/master/helpers.html) documentation on handling of metadata fields in flat dicts.
+The key/value pairs are added to the top level of each document.  Note that the user need not add documents with data nested under a `_source` key, as metadata fields can be handled at the same level as the data fields.  For further details, see the underlying Elasticsearch client [bulk insert](https://elasticsearch-py.readthedocs.io/en/master/helpers.html) documentation on handling of metadata fields in flat dicts.
 
 ### Exception Handling
 
@@ -153,14 +155,14 @@ as well as the more specific `ElasticBufferFlushError` raised on errors flushing
 ```
 >>> from elasticbatch.exceptions import ElasticBufferFlushError
 ```
-Elasticsearch exceptions can result in a message that contains every document related to a failed bulk insertion request.  Because this message can be very large, the `verbose_errors` flag can be used to optionally truncate the error message.  When `ElasticBuffer` is initialized with `verbose_errors=True`, the entirety of the error message is returned.  When `verbose_errors=False`, a shorter, descriptive message is returned.  In both cases, the full, potentially verbose, exception is available via the `err` property on the raised `ElasticBufferFlushError`.
+Elasticsearch exception messages can contain a copy of every document related to a failed bulk insertion request.  As such messages can be very large, the `verbose_errors` flag can be used to optionally truncate the error message.  When `ElasticBuffer` is initialized with `verbose_errors=True`, the entirety of the error message is returned.  When `verbose_errors=False`, a shorter, descriptive message is returned.  In both cases, the full, potentially verbose, exception is available via the `err` property on the raised `ElasticBufferFlushError`.
 
 ## Tests
 To run tests:
 ```
 $ python -m unittest discover -v
 ```
-I usually run tests with the awesome [green](https://github.com/CleanCut/green) package, which I highly recommend!
+The awesome [green](https://github.com/CleanCut/green) package is also highly recommended for running tests and reporting test coverage:
 ```
-$ green -vr
+$ green -vvr
 ```
