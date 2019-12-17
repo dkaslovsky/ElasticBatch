@@ -58,12 +58,12 @@ Start by importing the `ElasticBuffer` class:
 >>> esbuf = ElasticBuffer()
 ```
 Alternatively, one can pass any of the following parameters:
-- `size`: `[int]` number of documents the buffer can hold before flushing to Elasticsearch.
-- `client_kwargs`: `[dict]` configuration kwargs passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available kwargs.
-- `bulk_kwargs`: `[dict]` configuration kwargs passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available kwargs.
-- `verbose_errs`: `[bool]` whether full (True; default) or truncated (False) exceptions are raised.  See [Exception Handling](#exception-handling) for more details.
-- `dump_dir`: `[str]` directory to write buffer contents when exiting context due to raised Exception; pass None to not write to file (default).
-- `**metadata_funcs`: `[callable]` functions to apply to each document for adding Elasticsearch metadata.  See [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
+- `size`: (`int`) number of documents the buffer can hold before flushing to Elasticsearch; defaults to 5000.
+- `client_kwargs`: (`dict`) configuration passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available options.
+- `bulk_kwargs`: (`dict`) configuration passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available options.
+- `verbose_errs`: (`bool`) whether verbose (`True`, default) or truncated (`False`) exceptions are raised; see [Exception Handling](#exception-handling) for more details.
+- `dump_dir`: (`str`) directory to write buffer contents when exiting context due to raised Exception; defaults to `None` for not writing to file.
+- `**metadata_funcs`: (`callable`) functions to apply to each document for adding Elasticsearch metadata.; see [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
 
 Once initialized, `ElasticBuffer` exposes two methods, `add` and `flush`.
 Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of docuemnts exceeds the buffer's size:
