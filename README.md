@@ -153,6 +153,7 @@ as well as the more specific `ElasticBufferFlushError` raised on errors flushing
 ```
 >>> from elasticbatch.exceptions import ElasticBufferFlushError
 ```
+Elasticsearch exceptions can result in a message that contains every document related to a failed bulk insertion request.  Because this message can be very large, the `verbose_errors` flag can be used to optionally truncate the error message.  When `ElasticBuffer` is initialized with `verbose_errors=True`, the entirety of the error message is returned.  When `verbose_errors=False`, a shorter, descriptive message is returned.  In both cases, the full, potentially verbose, exception is available via the `err` property on the raised `ElasticBufferFlushError`.
 
 ## Tests
 To run tests:
