@@ -17,7 +17,7 @@ Elasticsearch buffer for collecting and batch inserting Python data and pandas D
 `ElasticBatch` implements the following features (see [Usage](#usage) for examples and more details) that allow a user to:
 - Work with documents as lists of dicts or as rows of pandas DataFrames
 - Add documents to a buffer that will automatically flush (insert its contents to Elasticsearch) when it is full
-- Handle all interaction with and configuration of the underlying Elasticsearch client while remaining configurable by the user if so desired
+- Interact with an intuitive interface that handles all of the underlying Elasticsearch client logic on behalf of the user
 - Track the elapsed time a document has been in the buffer, allowing a user to flush the buffer at a desired time interval even when it is not full
 - Work within a context manager that will automatically flush before exiting, alleviating the need for extra code to ensure all documents are written to the database
 - Optionally dump the buffer contents (documents) to a file before exiting due to an uncaught exception
@@ -58,7 +58,7 @@ Start by importing the `ElasticBuffer` class:
 >>> esbuf = ElasticBuffer()
 ```
 Alternatively, one can pass any of the following parameters:
-- `size`: (`int`) number of documents the buffer can hold before flushing to Elasticsearch; defaults to 5000.
+- `size`: (`int`) number of documents the buffer can hold before flushing to Elasticsearch; defaults to `5000`.
 - `client_kwargs`: (`dict`) configuration passed to the underlying `elasticsearch.Elasticsearch` client; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/api.html#elasticsearch) for all available options.
 - `bulk_kwargs`: (`dict`) configuration passed to the underlying call to `elasticsearch.helpers.bulk` for bulk insertion; see the Elasticsearch [documentation](https://elasticsearch-py.readthedocs.io/en/master/helpers.html#elasticsearch.helpers.bulk) for all available options.
 - `verbose_errs`: (`bool`) whether verbose (`True`, default) or truncated (`False`) exceptions are raised; see [Exception Handling](#exception-handling) for more details.
