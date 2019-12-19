@@ -4,9 +4,7 @@ Elasticsearch buffer for collecting and batch inserting Python data and pandas D
 
 [![Build Status](https://travis-ci.com/dkaslovsky/ElasticBatch.svg?branch=master)](https://travis-ci.com/dkaslovsky/ElasticBatch)
 [![Coverage Status](https://coveralls.io/repos/github/dkaslovsky/ElasticBatch/badge.svg?branch=master)](https://coveralls.io/github/dkaslovsky/ElasticBatch?branch=master)
-[![Python 3.6](https://img.shields.io/badge/python-3.6-blue.svg)](https://www.python.org/downloads/release/python-360/)
-[![Python 3.7](https://img.shields.io/badge/python-3.7-blue.svg)](https://www.python.org/downloads/release/python-370/)
-[![Python 3.8](https://img.shields.io/badge/python-3.8-blue.svg)](https://www.python.org/downloads/release/python-380/)
+![PyPI - Python Version](https://img.shields.io/pypi/pyversions/ElasticBatch)
 
 ## Overview
 `ElasticBatch` makes it easy to efficiently insert batches of data in the form of Python dictionaries or [pandas](https://pandas.pydata.org/) [DataFrames](https://pandas.pydata.org/pandas-docs/stable/getting_started/dsintro.html#dataframe) into Elasticsearch.  An efficient pattern when processing data bound for [Elasticsearch](https://www.elastic.co/products/elasticsearch) is to collect data records ("documents") in a buffer to be bulk-inserted in batches.  `ElasticBatch` provides this functionality to ease the overhead and reduce the code involved in inserting large batches or streams of data into Elasticsearch.
@@ -66,7 +64,7 @@ Alternatively, one can pass any of the following parameters:
 - `**metadata_funcs`: (`callable`) functions to apply to each document for adding Elasticsearch metadata.; see [Automatic Elasticsearch Metadata Fields](#automatic-elasticsearch-metadata-fields) for more details.
 
 Once initialized, `ElasticBuffer` exposes two methods, `add` and `flush`.
-Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of docuemnts exceeds the buffer's size:
+Use `add` to add documents to the buffer, noting that all documents in the buffer will be flushed and inserted into Elasticsearch once the number of documents exceeds the buffer's size:
 ```
 >>> docs = [
         {'_index': 'my-index', 'a': 1, 'b': 2.1, 'c': 'xyz'},
@@ -87,7 +85,7 @@ A third method, `show()`, exists mostly for debug purposes and prints all docume
 
 ### pandas DataFrames
 
-Alternatively, one can directly insert a pandas DataFrame into the buffer and each row will be treated as a document:
+One can directly insert a pandas DataFrame into the buffer and each row will be treated as a document:
 ```
 >>> import pandas as pd
 >>> df = pd.DataFrame(docs)
@@ -101,7 +99,7 @@ Alternatively, one can directly insert a pandas DataFrame into the buffer and ea
 
 >>> esbuf.add(df)
 ```
-The DataFrame's index (referring to `df.index` and __not__ the column `_index`) is ignored unless it is named, in which case it is added as an ordinary field (column).
+The DataFrame's index (referring to `df.index` and __not__ the column named `_index`) is ignored unless it is named, in which case it is added as an ordinary field (column).
 
 ### Context Manager
 
@@ -125,7 +123,7 @@ This information can be used to periodically check the elapsed time of the oldes
 
 ### Automatic Elasticsearch Metadata Fields
 
-An `ElasticBuffer` instance can be initialized with kwargs corresponding to callable functions to add [Elasticsearch metadata](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-fields.html) fields to each message added to the buffer:
+An `ElasticBuffer` instance can be initialized with kwargs corresponding to callable functions to add [Elasticsearch metadata](https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-fields.html) fields to each document added to the buffer:
 ```
 >>> def my_index_func(doc): return 'my-index'
 >>> def my_id_func(doc): return sum(doc.values())
@@ -143,9 +141,9 @@ An `ElasticBuffer` instance can be initialized with kwargs corresponding to call
 {"a": 1, "b": 2, "_index": "my-index", "_id": 3}
 {"a": 8, "b": 9, "_index": "my-index", "_id": 17}
 ```
-Callable kwargs add key/value pairs to each document, where the key corresponds to the name of the kwarg and the value is the function's return value.  This works for DataFrames, as they are transformed to documents (dicts) before applying the supplied metadata functions.
+Callable kwargs add key/value pairs to each document, where the key corresponds to the name of the kwarg and the value is the function's return value.  Each function must accept one argument (the document as a dict) and return one value.  This also works for DataFrames, as they are transformed to documents (dicts) before applying the supplied metadata functions.
 
-The key/value pairs are added to the top level of each document.  Note that the user need not add documents with data nested under a `_source` key, as metadata fields can be handled at the same level as the data fields.  For further details, see the underlying Elasticsearch client [bulk insert](https://elasticsearch-py.readthedocs.io/en/master/helpers.html) documentation on handling of metadata fields in flat dicts.
+The key/value pairs are added to the top-level of each document.  Note that the user need not add documents with data nested under a `_source` key, as metadata fields can be handled at the same level as the data fields.  For further details, see the underlying Elasticsearch client [bulk insert](https://elasticsearch-py.readthedocs.io/en/master/helpers.html) documentation on handling of metadata fields in flat dicts.
 
 ### Exception Handling
 
